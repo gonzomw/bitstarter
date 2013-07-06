@@ -24,8 +24,40 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var http = require('http');
+var urlVar = require('url');
+
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+
+var glb_checkFile = "";
+var options = {};
+
+callback = function(response) {
+
+  var str = '';
+
+  var processIt = function () {
+    $ =  cheerio.load(str);
+    var checks = JSON.parse(fs.readFileSync(glb_checkFile));
+    var out = {};
+    for(var ii in checks) {
+        var present = $(checks[ii]).length > 0;
+        out[checks[ii]] = present;
+    }
+    var outJson = JSON.stringify(out, null, 4);
+    console.log(outJson);
+ }
+  //another chunk of data has been recieved, so append it to `str`
+  response.on('data', function (chunk) {
+        str += chunk;
+  });
+
+  //the whole response has been recieved, process it with cheerio
+  response.on('end', function () {
+       processIt();
+  });
+}
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -38,6 +70,10 @@ var assertFileExists = function(infile) {
 
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
+}
+
+var cheerioHtmlPage = function(htmlfile) {
+      http.request(options, callback).end();
 };
 
 var loadChecks = function(checksfile) {
@@ -55,14 +91,34 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+var setOptions =  function(sStr) {
+      var uData = urlVar.parse(sStr);
+      options = {
+           host: uData.host,
+           path: uData.path
+      };
+      return sStr;
+};
+
 if(require.main == module) {
     program
-        .option('-c, --checks ', 'Path to checks.json', assertFileExists, CHECKSFILE_DEFAULT)
-        .option('-f, --file ', 'Path to index.html', assertFileExists, HTMLFILE_DEFAULT)
+        .option('-c, --checks <check_file>', 'Path to checks.json', assertFileExists.clone, CHECKSFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html' , assertFileExists)
+	.option('-u, --url <url_path>', 'URI Path to index.html', setOptions)
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+         glb_checkFile = program.checks;
+         if(typeof(program.url) != "undefined") {
+             cheerioHtmlPage(program.url, glb_checkFile);
+         } else {
+                var myFile = program.file || HTMLFILE_DEFAULT;
+         	var checkJson = checkHtmlFile(myFile, glb_checkFile);
+                var outJson = JSON.stringify(checkJson, null, 4);
+                console.log(outJson);
+         }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
+
+
+
