@@ -14,7 +14,7 @@ app.get('/contact/', function(request, response) {
 var buf = new Buffer(fs.readFileSync(infile));
 var contactBuf = new Buffer(fs.readFileSync(contactfname));
 
-var port = process.env.PORT || 5000;
+var port = process.env.PORT || 8585;
 app.listen(port, function() {
   console.log("Listening on " + port);
 });
